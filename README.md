@@ -25,8 +25,8 @@ make install
 ## Quick Usage
 
 ```bash
-# log in once; the session is saved to the user config dir
-miband login --user you@example.com
+# log in once: prompts for region, account, password and the email code; the session is saved
+miband login
 
 # devices bound to the account
 miband devices
@@ -49,23 +49,38 @@ miband data --kind heart_rate,spo2 --raw
 | Command | Description |
 |---------|-------------|
 | `login` | Log into the Xiaomi account and save the cloud session |
+| `logout` | Remove the saved cloud session |
 | `devices` | List devices bound to the account |
 | `data` | Fetch steps, sleep, workouts and other records synced by Mi Fitness |
 
 ### login
 
 ```bash
-# password from a no-echo prompt on a terminal, MIBAND_PASSWORD, or the first line of stdin
-miband login --user you@example.com
-MIBAND_PASSWORD=secret miband login --user you@example.com
+# interactive: region, account, password, then the code from the email if the account asks for it
+miband login
 
-# accounts that require a browser check or captcha
+# flags skip their prompts; the password comes from MIBAND_PASSWORD, a no-echo prompt, or a stdin line
+miband login --region de --user you@example.com
+MIBAND_PASSWORD=secret miband login --region de --user you@example.com
+
+# without a terminal the answers are read line by line from stdin
+printf '%s\n' de you@example.com secret | miband login
+
+# checks without an email code, or a captcha: finish them in a browser and pass its cookies
 miband login --user-id 123456789 --pass-token 'V1:...'
 ```
 
-When the account asks for verification, the error prints the URL to open. Finish the check in a browser, then pass the `userId` and `passToken` cookies of `account.xiaomi.com`.
+The region is the Mi Fitness server: `de` (Europe), `sg` (Singapore), `ru` (Russia), `us` (USA), `i2` (India); an empty answer selects `cn` (China). When the account asks for a security check, login sends a code to the account email and asks for it; an empty answer asks again, and up to three codes are tried. A check that offers no email code, or that the server refuses, prints the URL to open; finish it in a browser, then pass the `userId` and `passToken` cookies of `account.xiaomi.com`.
 
 The session is saved with mode 0600 to `~/Library/Application Support/miband/cloud.json` on macOS (`$XDG_CONFIG_HOME/miband/cloud.json` or `~/.config/miband/cloud.json` on Linux). An expired service token is refreshed once with the saved pass token.
+
+### logout
+
+```bash
+miband logout
+```
+
+Removes the saved session file. Like Mi Fitness, logout is local only: the pass token stays valid on the Xiaomi server until the password is changed or the device is removed in the security settings of `account.xiaomi.com`.
 
 ### data
 

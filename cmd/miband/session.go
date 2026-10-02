@@ -18,6 +18,12 @@ import (
 
 var errNotLoggedIn = errors.New("not logged in: run miband login (or pass --user / --user-id with --pass-token)")
 
+// maxCodeTries is how many email codes login asks for before it gives up.
+const maxCodeTries = 3
+
+// testServer, when set, replaces the account and health cloud hosts.
+var testServer string
+
 // savedSession is the on-disk cloud login, mode 0600.
 type savedSession struct {
 	Region   string        `json:"region"`
@@ -68,10 +74,11 @@ type cloudFlags struct {
 	deviceID string // effective pseudo device id, kept across logins
 	stdin    io.Reader
 	stderr   io.Writer
+	in       *bufio.Reader // shared by all prompts, so buffered lines of piped stdin are not lost
 }
 
 func (c *cloudFlags) options() *cloud.Options {
-	o := &cloud.Options{Region: c.region, DeviceID: c.deviceID}
+	o := &cloud.Options{Region: c.region, DeviceID: c.deviceID, AccountURL: testServer, HealthURL: testServer}
 	if c.verbose {
 		o.Logf = func(f string, a ...any) { _, _ = fmt.Fprintf(c.stderr, f+"\n", a...) }
 	}
@@ -161,6 +168,10 @@ func (c *cloudFlags) freshLogin(ctx context.Context) (*cloud.Session, error) {
 			return nil, err
 		}
 		sess, err = cloud.Login(ctx, c.user, pass, c.options())
+		var ne *cloud.NotificationError
+		if errors.As(err, &ne) {
+			sess, err = c.verifyEmail(ctx, ne)
+		}
 	}
 	if err != nil {
 		return nil, explainLogin(err)
@@ -186,8 +197,92 @@ func (c *cloudFlags) readPassword(ctx context.Context) (string, error) {
 	return c.readHidden(ctx, fd)
 }
 
+// verifyEmail passes the security check with the code sent to the account email. When the server
+// offers no email code or refuses the check, the error keeps ne, so explainLogin shows the browser path.
+func (c *cloudFlags) verifyEmail(ctx context.Context, ne *cloud.NotificationError) (*cloud.Session, error) {
+	v, err := ne.SendEmailCode(ctx)
+	if errors.Is(err, cloud.ErrNoEmailVerification) {
+		return nil, ne
+	}
+	if err != nil {
+		return nil, withBrowserPath(err, ne)
+	}
+	if !v.CodeSent {
+		sess, err := v.Finish(ctx, "")
+		return sess, withBrowserPath(err, ne)
+	}
+	to := v.MaskedEmail
+	if to == "" {
+		to = "the account email"
+	}
+	for tries := 0; tries < maxCodeTries; {
+		code, err := c.ask(ctx, "code sent to "+to)
+		if err != nil {
+			return nil, err
+		}
+		// an empty answer would spend a server attempt
+		if code = strings.TrimSpace(code); code == "" {
+			_, _ = fmt.Fprintln(c.stderr, "empty code, enter the digits from the email")
+			continue
+		}
+		tries++
+		sess, err := v.Finish(ctx, code)
+		if !errors.Is(err, cloud.ErrWrongCode) {
+			return sess, withBrowserPath(err, ne)
+		}
+		_, _ = fmt.Fprintln(c.stderr, "wrong code")
+	}
+	return nil, cloud.ErrWrongCode
+}
+
+// withBrowserPath joins ne to a refusal of the email check; transport errors and cancellation stay as they are.
+func withBrowserPath(err error, ne *cloud.NotificationError) error {
+	var re *cloud.ResponseError
+	if errors.As(err, &re) {
+		return errors.Join(err, ne)
+	}
+	return err
+}
+
+// askMissing prompts for the region and the account that no flag gave.
+func (c *cloudFlags) askMissing(ctx context.Context, regionSet bool) error {
+	if !regionSet {
+		r, err := c.ask(ctx, "region of the Mi Fitness server, e.g. de (Europe), sg (Singapore), ru (Russia), us (USA), i2 (India); empty for cn (China)")
+		if err != nil {
+			return err
+		}
+		c.region = strings.ToLower(strings.TrimSpace(r))
+		if c.region == "" {
+			c.region = "cn"
+		}
+	}
+	if c.user == "" {
+		u, err := c.ask(ctx, "Xiaomi account (email, phone or user id)")
+		if err != nil {
+			return err
+		}
+		if c.user = strings.TrimSpace(u); c.user == "" {
+			return errors.New("no Xiaomi account given")
+		}
+	}
+	return nil
+}
+
+// ask prints a prompt to stderr and reads one line of stdin.
+func (c *cloudFlags) ask(ctx context.Context, prompt string) (string, error) {
+	_, _ = fmt.Fprint(c.stderr, prompt+": ")
+	s, err := readCtx(ctx, c.readLine)
+	if errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("no input for the prompt %q", prompt)
+	}
+	return s, err
+}
+
 func (c *cloudFlags) readLine() (string, error) {
-	line, err := bufio.NewReader(c.stdin).ReadString('\n')
+	if c.in == nil {
+		c.in = bufio.NewReader(c.stdin)
+	}
+	line, err := c.in.ReadString('\n')
 	if errors.Is(err, io.EOF) && line != "" {
 		err = nil
 	}
@@ -231,7 +326,12 @@ func explainLogin(err error) error {
 	case errors.As(err, &ve):
 		return &hintError{"second-step verification code required: log in once at https://account.xiaomi.com in a browser, then rerun miband login with --user-id and --pass-token cookies", err}
 	case errors.As(err, &ne):
-		return &hintError{fmt.Sprintf("account needs verification: open %s in a browser, then rerun miband login with --user-id and --pass-token taken from the account.xiaomi.com cookies", ne.URL), err}
+		msg := fmt.Sprintf("account needs verification: open %s in a browser, then rerun miband login with --user-id and --pass-token taken from the account.xiaomi.com cookies", ne.URL)
+		var re *cloud.ResponseError
+		if errors.As(err, &re) {
+			msg = "email code check failed (" + re.Error() + "); " + msg
+		}
+		return &hintError{msg, err}
 	case errors.As(err, &ce):
 		return &hintError{fmt.Sprintf("captcha required: log in once at %s in a browser, then rerun miband login with --user-id and --pass-token cookies", ce.URL), err}
 	}

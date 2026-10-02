@@ -13,14 +13,25 @@ import (
 // execute runs the root command with an isolated config dir and returns stdout, stderr and the error.
 func execute(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
+	return executeIn(t, "", args...)
+}
+
+// executeIn is execute with stdin.
+func executeIn(t *testing.T, stdin string, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("MIBAND_PASSWORD", "")
+	return run(stdin, args...)
+}
+
+// run executes the root command in the current environment.
+func run(stdin string, args ...string) (stdout, stderr string, err error) {
 	var out, errOut bytes.Buffer
 	cmd := newRootCmd()
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
-	cmd.SetIn(strings.NewReader(""))
+	cmd.SetIn(strings.NewReader(stdin))
 	cmd.SetArgs(args)
 	err = cmd.Execute()
 	return out.String(), errOut.String(), err
@@ -31,7 +42,7 @@ func TestRootHelpListsCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"login", "devices", "data"} {
+	for _, name := range []string{"login", "logout", "devices", "data"} {
 		if !strings.Contains(out, name) {
 			t.Errorf("help has no %q command:\n%s", name, out)
 		}
@@ -71,10 +82,10 @@ func TestRootPersistentFlagDefaults(t *testing.T) {
 	}
 }
 
-func TestLoginRequiresCredentials(t *testing.T) {
+func TestLoginWithoutInputFails(t *testing.T) {
 	_, _, err := execute(t, "login")
-	if err == nil || !strings.Contains(err.Error(), "--user") {
-		t.Fatalf("got %v, want hint about --user", err)
+	if err == nil || !strings.Contains(err.Error(), "region") {
+		t.Fatalf("got %v, want missing region input", err)
 	}
 }
 
@@ -123,6 +134,7 @@ func TestExitCode(t *testing.T) {
 		{"explained", explainLogin(&cloud.VerificationError{}), exitAuth},
 		{"verification", &cloud.NotificationError{URL: "u"}, exitAuth},
 		{"captcha", &cloud.CaptchaError{URL: "u"}, exitAuth},
+		{"wrong email code", cloud.ErrWrongCode, exitAuth},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

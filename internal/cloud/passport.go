@@ -34,8 +34,13 @@ var (
 	ErrInvalidUser        = errors.New("xiaomi account: unknown user name")
 )
 
-// NotificationError means the account requires a security check (2FA) in a browser.
-type NotificationError struct{ URL string }
+// NotificationError means the account requires a security check (2FA). SendEmailCode passes it
+// without a browser when the check offers an email code.
+type NotificationError struct {
+	URL string
+
+	opts Options
+}
 
 func (e *NotificationError) Error() string {
 	return "xiaomi account: security verification required; open " + e.URL +
@@ -58,13 +63,17 @@ func (e *VerificationError) Error() string {
 		" in a browser, then use the userId and passToken cookies with LoginWithPassToken"
 }
 
-// ResponseError is any other non-zero passport result.
+// ResponseError is any other non-zero passport result. Desc is a local explanation; the server
+// desc stays out because it may echo request data.
 type ResponseError struct {
 	Code int
 	Desc string
 }
 
 func (e *ResponseError) Error() string {
+	if e.Desc == "" {
+		return fmt.Sprintf("xiaomi account: code %d", e.Code)
+	}
 	return fmt.Sprintf("xiaomi account: code %d: %s", e.Code, e.Desc)
 }
 
@@ -83,7 +92,6 @@ type Session struct {
 
 type loginResult struct {
 	Code            int             `json:"code"`
-	Desc            string          `json:"desc"`
 	Sign            string          `json:"_sign"`
 	Qs              string          `json:"qs"`
 	Callback        string          `json:"callback"`
@@ -120,7 +128,7 @@ func Login(ctx context.Context, user, password string, opts *Options) (*Session,
 		return nil, err
 	}
 	if meta.res.Code != codeAuthFailed {
-		return nil, fmt.Errorf("xiaomi account: unexpected serviceLogin code %d: %s", meta.res.Code, meta.res.Desc)
+		return nil, fmt.Errorf("xiaomi account: unexpected serviceLogin code %d", meta.res.Code)
 	}
 
 	form := url.Values{
@@ -178,15 +186,25 @@ func (o *Options) serviceLogin(ctx context.Context, userID, passToken string) (*
 }
 
 func (o *Options) passportDo(req *http.Request, cookie string) (*passportReply, error) {
-	reply, err := o.send(req, passportUserAgent(), cookie)
+	r := passportReply{}
+	h, err := o.passportJSON(req, passportUserAgent(), cookie, &r.res)
 	if err != nil {
 		return nil, err
 	}
-	r := passportReply{header: reply.header}
-	if err := json.Unmarshal([]byte(strings.TrimPrefix(string(reply.body), safePrefix)), &r.res); err != nil {
+	r.header = h
+	return &r, nil
+}
+
+// passportJSON sends a passport request and decodes its json reply into v.
+func (o *Options) passportJSON(req *http.Request, ua, cookie string, v any) (http.Header, error) {
+	reply, err := o.send(req, ua, cookie)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(string(reply.body), safePrefix)), v); err != nil {
 		return nil, fmt.Errorf("xiaomi account: bad response from %s: %w", req.URL.Path, err)
 	}
-	return &r, nil
+	return reply.header, nil
 }
 
 // cookieHeader joins name/value pairs in order, skipping empty values.
@@ -269,7 +287,7 @@ func (o *Options) loginError(res *loginResult) error {
 	if res.NotificationURL == "" {
 		return &ResponseError{Code: res.Code, Desc: "securityStatus set without notificationUrl"}
 	}
-	return &NotificationError{URL: o.absolute(res.NotificationURL)}
+	return &NotificationError{URL: o.absolute(res.NotificationURL), opts: *o}
 }
 
 func (o *Options) codeError(res *loginResult) error {
@@ -290,7 +308,7 @@ func (o *Options) codeError(res *loginResult) error {
 	case codeVerification:
 		return &VerificationError{}
 	default:
-		return &ResponseError{Code: res.Code, Desc: res.Desc}
+		return &ResponseError{Code: res.Code}
 	}
 }
 

@@ -48,8 +48,9 @@ type Options struct {
 	// AccountURL and HealthURL override the passport and health cloud base URLs (tests, proxies).
 	AccountURL string
 	HealthURL  string
-	// Logf, if set, receives one line per health cloud call: method, endpoint and response size.
-	// Bodies are never logged: they hold device keys, signed urls and health data.
+	// Logf, if set, receives one line per health cloud call (method, endpoint and response size) and
+	// per identity check call (method, path and result code). Queries and bodies are never logged:
+	// they hold device keys, signed urls, login context and health data.
 	Logf func(format string, args ...any)
 }
 
@@ -110,6 +111,16 @@ func passportUserAgent() string {
 	return fmt.Sprintf("Dalvik/2.1.0 (Linux; U; Android %s; %s) APP/%s APPV/%s MK/%s SDKV/%s",
 		phoneRelease, phoneModel, pkg, appVersionCode,
 		base64.StdEncoding.EncodeToString([]byte(phoneModel)), sdkVersion)
+}
+
+// webViewUserAgent mirrors the PassportJsbWebView that hosts the identity check: the system WebView
+// UA, the XMPassportUserAgent fields with XiaoMi/HybridView/, then WebViewType/PassportJSBWebView
+// (UserAgentBuilder.build, PassportJsbWebView.java:302). The WebView part is a stock Android 14 one.
+func webViewUserAgent() string {
+	pkg := appPackage[strings.Index(appPackage, ".")+1:]
+	return fmt.Sprintf("Mozilla/5.0 (Linux; Android %s; %s Build/UKQ1.231003.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) "+
+		"Version/4.0 Chrome/124.0.6367.179 Mobile Safari/537.36 APP/%s APPV/%s XiaoMi/HybridView/ MK/%s SDKV/%s WebViewType/PassportJSBWebView",
+		phoneRelease, phoneModel, pkg, appVersionCode, base64.StdEncoding.EncodeToString([]byte(phoneModel)), sdkVersion)
 }
 
 // healthUserAgent mirrors UAInterceptor: Android-<release>-<version>-<brand>-<model>-md5(deviceId)-md5(userId).

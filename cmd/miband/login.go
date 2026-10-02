@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -13,14 +12,19 @@ func newLoginCmd(cf *cloudFlags) *cobra.Command {
 		Short: "Log into the Xiaomi account and save the cloud session",
 		Long: `Log into the Xiaomi account and save the cloud session.
 
-With --user the password is read from MIBAND_PASSWORD, a no-echo prompt on a
-terminal, or the first line of stdin. When the account asks for a browser
-check, finish it there and pass the userId and passToken cookies of
-account.xiaomi.com with --user-id and --pass-token.`,
+Prompts for what no flag gives: the server region (--region), the account
+(--user), the password (MIBAND_PASSWORD, a no-echo prompt on a terminal, else a
+stdin line) and, when the account asks for a security check, the code it sends
+to the account email. Without a terminal the answers are read line by line
+from stdin. A check without an email code has to be finished in a browser;
+then pass the userId and passToken cookies of account.xiaomi.com with
+--user-id and --pass-token.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !cf.explicit() {
-				return errors.New("use --user (password prompt) or --user-id with --pass-token")
+			if cf.passToken == "" {
+				if err := cf.askMissing(cmd.Context(), cmd.Flags().Changed("region")); err != nil {
+					return err
+				}
 			}
 			s, err := cf.login(cmd.Context())
 			if err != nil {
