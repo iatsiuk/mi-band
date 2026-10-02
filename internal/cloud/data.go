@@ -24,10 +24,10 @@ const (
 	maxDataPages  = 1000
 )
 
-// ErrTooManyPages means the server kept returning has_more; the results so far are returned with it.
+// ErrTooManyPages means the server kept returning another page; the results so far are returned with it.
 var ErrTooManyPages = errors.New("xiaomi health cloud: too many result pages")
 
-// ErrIncompletePages means the server repeated a next_key while still reporting has_more.
+// ErrIncompletePages means the server repeated a paging cursor while still reporting more pages.
 var ErrIncompletePages = errors.New("xiaomi health cloud: paging cursor repeated, results incomplete")
 
 // Record is one health cloud fitness record (FitnessDataModel): a band sample or report as

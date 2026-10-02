@@ -44,4 +44,4 @@ Saved with mode 0600 to os.UserConfigDir()/miband/cloud.json; expired service to
 
 ## Exit Codes
 
-0 ok, 1 error, 3 auth error (not logged in, wrong password, verification required, token rejected), 130 SIGINT/SIGTERM
+0 ok, 1 error, 3 auth error (not logged in, unknown account, wrong password, verification required, token rejected), 130 SIGINT/SIGTERM

@@ -92,3 +92,67 @@ func TestFDSDownloadKeepsCancellation(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestDevicesRejectsCursorCycle(t *testing.T) {
+	f := newFakeCloud(t)
+	page := func(next string) string {
+		return `{"code":0,"result":{"list":[{"sid":"` + next + `","model":"m"}],"page_next":"` + next + `"}}`
+	}
+	f.pages = map[string]string{"": page("a"), "a": page("b"), "b": page("a")}
+	s, err := LoginWithPassToken(context.Background(), testUserID, testPassToken, f.opts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Devices(context.Background()); !errors.Is(err, ErrIncompletePages) {
+		t.Fatalf("got %v, want ErrIncompletePages", err)
+	}
+}
+
+func TestDevicesReportsPageLimit(t *testing.T) {
+	f := newFakeCloud(t)
+	f.pages = map[string]string{}
+	for i := range maxDevicePages {
+		f.pages[pageKey(i)] = `{"code":0,"result":{"list":[],"page_next":"` + pageKey(i+1) + `"}}`
+	}
+	s, err := LoginWithPassToken(context.Background(), testUserID, testPassToken, f.opts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Devices(context.Background()); !errors.Is(err, ErrTooManyPages) {
+		t.Fatalf("got %v, want ErrTooManyPages", err)
+	}
+}
+
+func pageKey(i int) string {
+	if i == 0 {
+		return ""
+	}
+	return fmt.Sprintf("p%d", i)
+}
+
+func TestBadStsLocationDoesNotLeakClientSign(t *testing.T) {
+	f := newFakeCloud(t)
+	f.stsLocation = "https://sts.example/%zz?ticket=SECRET"
+	_, err := LoginWithPassToken(context.Background(), testUserID, testPassToken, f.opts())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); strings.Contains(msg, "SECRET") || strings.Contains(msg, "clientSign") {
+		t.Fatalf("error leaks the sts url: %s", msg)
+	}
+}
+
+func TestBadHealthURLDoesNotLeakSignedQuery(t *testing.T) {
+	s, err := Resume(&Session{UserID: "1", CUserID: "c", ServiceToken: "tok", Ssecurity: testSsecurity},
+		&Options{DeviceID: testDeviceID, Region: "a b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.FitnessData(context.Background(), time.Unix(1, 0), time.Unix(2, 0), "steps")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); strings.Contains(msg, "signature") || strings.Contains(msg, "rc4_hash__") || strings.Contains(msg, "?") {
+		t.Fatalf("error leaks the signed query: %s", msg)
+	}
+}

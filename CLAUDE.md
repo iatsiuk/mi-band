@@ -18,6 +18,7 @@
 - `cmd/miband` - cobra CLI
   - `root.go` - root command, global flags (`--format`, `--region`, `--user`, `--user-id`, `--pass-token`, `--verbose`), exit codes (0 ok, 1 error, 3 auth, 130 interrupted), `exitCode`
   - `session.go` - saved session in `os.UserConfigDir()/miband/cloud.json` (mode 0600, atomic `writeSecret`), `cloudFlags.login` (explicit credentials or saved session), `client` with one pass-token re-login on `cloud.ErrUnauthorized` (`withRetry`)
+  - `echo_unix.go` (darwin, linux; ioctl numbers in `echo_darwin.go`, `echo_linux.go`) - password prompt turns echo off via termios before the cancelable read starts and restores it on return; `echo_other.go` falls back to `term.ReadPassword`
   - `login.go`, `devices.go`, `data.go` - subcommands; `data.go` builds a `dataResult` with sections in `--kind` order
   - `summary.go` - device filter, tombstone filter, steps per device and local day
   - `output.go`, `data_output.go` - `--format` rendering: `markdown` (default) via the `markdowner` interface and the `table` helper, `json` via `encoding/json`; `dataResult.MarshalJSON` keeps the flat JSON shape (`from`, `to`, one key per section, `partial`)

@@ -36,6 +36,8 @@ type fakeCloud struct {
 	mu sync.Mutex
 	// overrides the serviceLoginAuth2 json reply
 	auth2Reply string
+	// overrides the sts location of a successful login
+	stsLocation string
 	// pages served by the device list, keyed by page_start
 	pages map[string]string
 	// number of 401s to answer before serving the device list, with a Date header skew
@@ -163,8 +165,12 @@ func (f *fakeCloud) loginOK(w http.ResponseWriter) {
 	http.SetCookie(w, testCookie("userId", testUserID, 0))
 	http.SetCookie(w, testCookie("passToken", testPassToken, 0))
 	http.SetCookie(w, testCookie("cUserId", testCUserID, 0))
+	loc := f.srv.URL + "/sts?d=1"
+	if f.stsLocation != "" {
+		loc = f.stsLocation
+	}
 	_, _ = fmt.Fprintf(w, safePrefix+`{"code":0,"desc":"成功","securityStatus":0,"ssecurity":%q,"psecurity":"ps","nonce":%s,"location":%q}`,
-		testSsecurity, testNonce, f.srv.URL+"/sts?d=1")
+		testSsecurity, testNonce, loc)
 }
 
 // verify checks signature and rc4_hash__ the way the server must and returns the plaintext data.

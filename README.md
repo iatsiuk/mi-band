@@ -107,5 +107,5 @@ Steps are summed per device and local day. Deleted records are skipped unless `-
 |------|---------|
 | 0 | Success |
 | 1 | Error |
-| 3 | Authentication error: not logged in, wrong password, verification required, token rejected |
+| 3 | Authentication error: not logged in, unknown account, wrong password, verification required, token rejected |
 | 130 | Interrupted (SIGINT/SIGTERM) |

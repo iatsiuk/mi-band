@@ -118,6 +118,9 @@ func TestExitCode(t *testing.T) {
 		{"not logged in", errNotLoggedIn, exitAuth},
 		{"token rejected", fmt.Errorf("data: %w", cloud.ErrUnauthorized), exitAuth},
 		{"wrong password", cloud.ErrInvalidCredentials, exitAuth},
+		{"unknown user", fmt.Errorf("login: %w", cloud.ErrInvalidUser), exitAuth},
+		{"second step", &cloud.VerificationError{}, exitAuth},
+		{"explained", explainLogin(&cloud.VerificationError{}), exitAuth},
 		{"verification", &cloud.NotificationError{URL: "u"}, exitAuth},
 		{"captcha", &cloud.CaptchaError{URL: "u"}, exitAuth},
 	}
@@ -128,5 +131,19 @@ func TestExitCode(t *testing.T) {
 				t.Errorf("got %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestExplainLoginPointsToCLIFlags(t *testing.T) {
+	t.Parallel()
+	for _, err := range []error{
+		&cloud.NotificationError{URL: "https://account.example/n"},
+		&cloud.CaptchaError{URL: "https://account.example/c"},
+		&cloud.VerificationError{},
+	} {
+		msg := explainLogin(err).Error()
+		if !strings.Contains(msg, "--user-id") || !strings.Contains(msg, "--pass-token") || strings.Contains(msg, "LoginWithPassToken") {
+			t.Errorf("%T: %s", err, msg)
+		}
 	}
 }

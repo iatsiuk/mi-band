@@ -70,12 +70,12 @@ func (e *ResponseError) Error() string {
 
 // Session holds the miothealth service token of a logged-in account.
 type Session struct {
-	UserID       string
-	CUserID      string
-	ServiceToken string
-	Ssecurity    string
+	UserID       string `json:"user_id"`
+	CUserID      string `json:"c_user_id"`
+	ServiceToken string `json:"service_token"`
+	Ssecurity    string `json:"ssecurity"`
 	// PassToken allows LoginWithPassToken without the password; treat it as a secret.
-	PassToken string
+	PassToken string `json:"pass_token"`
 
 	opts     Options
 	timeDiff time.Duration
@@ -309,7 +309,8 @@ func (o *Options) fetchServiceToken(ctx context.Context, s *Session, res *loginR
 	loc += sep + "clientSign=" + url.QueryEscape(clientSign(nonce, s.Ssecurity)) + "&_userIdNeedEncrypt=true"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, loc, http.NoBody)
 	if err != nil {
-		return err
+		// the url carries clientSign, so it stays out of the error
+		return errors.New("xiaomi account: bad sts location in login response")
 	}
 	reply, err := o.send(req, passportUserAgent(), "")
 	if err != nil {

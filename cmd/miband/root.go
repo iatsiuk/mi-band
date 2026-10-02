@@ -61,7 +61,7 @@ func exitCode(err error) int {
 	var ce *cloud.CaptchaError
 	var ve *cloud.VerificationError
 	if errors.Is(err, errNotLoggedIn) || errors.Is(err, cloud.ErrUnauthorized) ||
-		errors.Is(err, cloud.ErrInvalidCredentials) ||
+		errors.Is(err, cloud.ErrInvalidCredentials) || errors.Is(err, cloud.ErrInvalidUser) ||
 		errors.As(err, &ne) || errors.As(err, &ce) || errors.As(err, &ve) {
 		return exitAuth
 	}

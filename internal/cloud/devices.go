@@ -20,14 +20,14 @@ const (
 
 // Device is one entry of the health cloud device list.
 type Device struct {
-	DID       string
-	Model     string
-	Name      string
-	ProductID int
-	MAC       string
-	SN        string
+	DID       string `json:"did"`
+	Model     string `json:"model"`
+	Name      string `json:"name"`
+	ProductID int    `json:"product_id"`
+	MAC       string `json:"mac,omitempty"`
+	SN        string `json:"sn,omitempty"`
 	// EncryptKey is the BLE auth token (hex) used by auth V2 for cloud-bound wearables.
-	EncryptKey string
+	EncryptKey string `json:"encrypt_key,omitempty"`
 }
 
 // APIError is a non-zero code in a health cloud response.
@@ -56,10 +56,13 @@ type wireDevice struct {
 	} `json:"detail"`
 }
 
-// Devices returns all devices bound to the account (DeviceRequest.getDevices paging).
+// Devices returns all devices bound to the account (DeviceRequest.getDevices paging). A repeated
+// page_next cursor is ErrIncompletePages and running out of pages ErrTooManyPages; the devices
+// read so far are returned with either.
 func (s *Session) Devices(ctx context.Context) ([]Device, error) {
 	var out []Device
 	next := ""
+	seen := map[string]bool{"": true}
 	for range maxDevicePages {
 		data := map[string]any{"page_size": devicePageSize}
 		if next != "" {
@@ -75,12 +78,16 @@ func (s *Session) Devices(ctx context.Context) ([]Device, error) {
 		for _, d := range res.List {
 			out = append(out, d.convert())
 		}
-		if res.PageNext == "" || res.PageNext == next {
-			break
+		if res.PageNext == "" {
+			return out, nil
 		}
+		if seen[res.PageNext] {
+			return out, ErrIncompletePages
+		}
+		seen[res.PageNext] = true
 		next = res.PageNext
 	}
-	return out, nil
+	return out, ErrTooManyPages
 }
 
 func (d wireDevice) convert() Device {
@@ -190,9 +197,7 @@ func decodeEnvelope(body []byte, v any) error {
 }
 
 // request signs and encrypts values (form for POST, query for GET) and decrypts the reply.
-// open params are appended to the GET query in plain text and stay out of the signature,
-// like CloudInterceptor does for keys outside Secret.filterSignatureKeys.
-func (s *Session) request(ctx context.Context, method string, ep endpoint, values map[string]string, open ...string) ([]byte, error) {
+func (s *Session) request(ctx context.Context, method string, ep endpoint, values map[string]string) ([]byte, error) {
 	nonce, err := newNonce(rand.Reader, time.Now().Add(s.timeDiff))
 	if err != nil {
 		return nil, err
@@ -201,7 +206,7 @@ func (s *Session) request(ctx context.Context, method string, ep endpoint, value
 	if err != nil {
 		return nil, err
 	}
-	req, err := s.newRequest(ctx, method, ep, params, open)
+	req, err := s.newRequest(ctx, method, ep, params)
 	if err != nil {
 		return nil, err
 	}
@@ -228,13 +233,10 @@ func (s *Session) request(ctx context.Context, method string, ep endpoint, value
 }
 
 // newRequest builds the health cloud request: params as form for POST, query for GET.
-func (s *Session) newRequest(ctx context.Context, method string, ep endpoint, params map[string]string, open []string) (*http.Request, error) {
+func (s *Session) newRequest(ctx context.Context, method string, ep endpoint, params map[string]string) (*http.Request, error) {
 	form := url.Values{}
 	for k, v := range params {
 		form.Set(k, v)
-	}
-	for i := 0; i+1 < len(open); i += 2 {
-		form.Set(open[i], open[i+1])
 	}
 	var req *http.Request
 	var err error
@@ -244,7 +246,8 @@ func (s *Session) newRequest(ctx context.Context, method string, ep endpoint, pa
 		req, err = http.NewRequestWithContext(ctx, method, s.opts.HealthURL+ep.path, strings.NewReader(form.Encode()))
 	}
 	if err != nil {
-		return nil, err
+		// a GET url carries the signed query, so only the endpoint is named
+		return nil, fmt.Errorf("xiaomi health cloud: bad request url for %s", ep.path)
 	}
 	if method != http.MethodGet {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

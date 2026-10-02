@@ -108,6 +108,10 @@ func (c *cloudFlags) loadSaved() (*savedSession, bool, error) {
 	if err := json.Unmarshal(b, &saved); err != nil {
 		return nil, false, fmt.Errorf("bad saved session %s: %w", p, err)
 	}
+	// files written before Session had json tags decode without tokens
+	if saved.Session.ServiceToken == "" || saved.Session.UserID == "" {
+		return nil, false, fmt.Errorf("saved session %s is incomplete: %w", p, errNotLoggedIn)
+	}
 	if c.region == "" {
 		c.region = saved.Region
 	}
@@ -153,7 +157,7 @@ func (c *cloudFlags) freshLogin(ctx context.Context) (*cloud.Session, error) {
 		sess, err = cloud.LoginWithPassToken(ctx, c.userID, c.passToken, c.options())
 	} else {
 		var pass string
-		if pass, err = c.readPassword(); err != nil {
+		if pass, err = c.readPassword(ctx); err != nil {
 			return nil, err
 		}
 		sess, err = cloud.Login(ctx, c.user, pass, c.options())
@@ -164,22 +168,49 @@ func (c *cloudFlags) freshLogin(ctx context.Context) (*cloud.Session, error) {
 	return sess, c.save(sess)
 }
 
-// readPassword takes MIBAND_PASSWORD, or prompts without echo on a terminal.
-func (c *cloudFlags) readPassword() (string, error) {
+// readPassword takes MIBAND_PASSWORD, or prompts without echo on a terminal, else reads the first
+// stdin line; a canceled ctx stops the wait.
+func (c *cloudFlags) readPassword(ctx context.Context) (string, error) {
 	if p := os.Getenv("MIBAND_PASSWORD"); p != "" {
 		return p, nil
 	}
-	if c.stdin == os.Stdin && term.IsTerminal(int(os.Stdin.Fd())) { //nolint:gosec // fd fits in int
-		_, _ = fmt.Fprint(c.stderr, "password: ")
-		b, err := term.ReadPassword(int(os.Stdin.Fd())) //nolint:gosec // fd fits in int
-		_, _ = fmt.Fprintln(c.stderr)
-		return string(b), err
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
+	fd := int(os.Stdin.Fd()) //nolint:gosec // fd fits in int
+	if c.stdin != os.Stdin || !term.IsTerminal(fd) {
+		return readCtx(ctx, c.readLine)
+	}
+	_, _ = fmt.Fprint(c.stderr, "password: ")
+	defer func() { _, _ = fmt.Fprintln(c.stderr) }()
+	return c.readHidden(ctx, fd)
+}
+
+func (c *cloudFlags) readLine() (string, error) {
 	line, err := bufio.NewReader(c.stdin).ReadString('\n')
 	if errors.Is(err, io.EOF) && line != "" {
 		err = nil
 	}
 	return strings.TrimRight(line, "\r\n"), err
+}
+
+// readCtx returns when read does or ctx is done; a read left behind ends with the process.
+func readCtx(ctx context.Context, read func() (string, error)) (string, error) {
+	type result struct {
+		s   string
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		s, err := read()
+		ch <- result{s, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.s, r.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }
 
 // hintError replaces the message of a passport error with instructions but keeps it for errors.As.
@@ -195,7 +226,10 @@ func (e *hintError) Unwrap() error { return e.err }
 func explainLogin(err error) error {
 	var ne *cloud.NotificationError
 	var ce *cloud.CaptchaError
+	var ve *cloud.VerificationError
 	switch {
+	case errors.As(err, &ve):
+		return &hintError{"second-step verification code required: log in once at https://account.xiaomi.com in a browser, then rerun miband login with --user-id and --pass-token cookies", err}
 	case errors.As(err, &ne):
 		return &hintError{fmt.Sprintf("account needs verification: open %s in a browser, then rerun miband login with --user-id and --pass-token taken from the account.xiaomi.com cookies", ne.URL), err}
 	case errors.As(err, &ce):

@@ -48,7 +48,8 @@ type Options struct {
 	// AccountURL and HealthURL override the passport and health cloud base URLs (tests, proxies).
 	AccountURL string
 	HealthURL  string
-	// Logf, if set, receives decrypted health cloud responses for debugging.
+	// Logf, if set, receives one line per health cloud call: method, endpoint and response size.
+	// Bodies are never logged: they hold device keys, signed urls and health data.
 	Logf func(format string, args ...any)
 }
 

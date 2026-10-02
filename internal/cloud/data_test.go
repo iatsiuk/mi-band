@@ -322,6 +322,10 @@ func newDataServer(t *testing.T) (*dataServer, *Session) {
 			d.queries[r.URL.Path] = append(d.queries[r.URL.Path], data)
 			f.respondEncrypted(w, r.URL.Query().Get("_nonce"), d.fds)
 		},
+		// FDS answers with a redirect to the object, like a real pre-signed url may
+		"/fds/redirect": func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/fds/object?sig=1", http.StatusFound)
+		},
 		"/fds/object": func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Cookie") != "" || r.Header.Get("User-Agent") != "" {
 				t.Errorf("fds download sends cookie %q, user agent %q", r.Header.Get("Cookie"), r.Header.Get("User-Agent"))
@@ -463,7 +467,7 @@ func TestWorkoutsAndRawFile(t *testing.T) {
 	d.object = encryptFDSForTest(t, server, objKey)
 	it := fdsItemFor("940134049", id)
 	d.fds = fmt.Sprintf(`{"code":0,"result":{%q:{"url":%q,"obj_name":"x","obj_key":%q,"method":"GET","expires_time":1}}}`,
-		it.serverKey(), d.f.srv.URL+"/fds/object?sig=1", objKey)
+		it.serverKey(), d.f.srv.URL+"/fds/redirect?sig=1", objKey)
 
 	raw, err := s.RawFile(context.Background(), ws[0].DID, id)
 	if err != nil {
