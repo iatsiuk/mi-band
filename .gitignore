@@ -1,0 +1,29 @@
+# Binary
+/miband
+
+# Release output
+/dist/
+
+# Test coverage
+coverage.out
+
+# Vendor directory
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# local research: app, decompiled sources, firmware, notes, generators
+/research/

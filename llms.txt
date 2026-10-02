@@ -1,0 +1,47 @@
+# miband
+
+Xiaomi Smart Band command-line client. Reads data that Mi Fitness synced to the Xiaomi cloud: devices, steps, sleep, heart rate, SpO2, stress, workouts with raw per-second record and GPS. Pure Go, no Bluetooth, no cgo.
+
+## Installation
+
+```bash
+make install  # from a checkout
+```
+
+## Quick Usage
+
+```bash
+miband login --user you@example.com
+miband devices
+miband data
+miband data --days 0 --kind steps --did 123456789 -f json
+miband data --kind workouts --details -f json
+miband data --kind heart_rate,spo2 --raw
+```
+
+## Commands
+
+- login - log into the Xiaomi account and save the session; --user (password from MIBAND_PASSWORD, no-echo prompt on TTY, or first stdin line) or --user-id with --pass-token (cookies of account.xiaomi.com after browser verification)
+- devices - list devices bound to the account: did, model, name, mac, sn
+- data - fetch records; --days (7, 0..3650, from local midnight, today included), --kind (steps,sleep,workouts or any record key such as heart_rate, spo2, stress, calories, watch_night_sleep), --did (one device), --details (download and decode workout record/gps/recover_rate files), --raw (records as stored, including tombstones)
+
+## Global Flags
+
+-f/--format (markdown; markdown|json), --region (saved login, else China), -u/--user, --user-id, --pass-token, -v/--verbose (log endpoints and sizes to stderr)
+
+## Environment Variables
+
+MIBAND_PASSWORD - password for login --user.
+
+## Output Formats
+
+- markdown - default; heading per section, tables; workout detail files listed by name
+- json - pretty-printed, every field, decoded workout detail files
+
+## Session
+
+Saved with mode 0600 to os.UserConfigDir()/miband/cloud.json; expired service token is refreshed once with the saved pass token.
+
+## Exit Codes
+
+0 ok, 1 error, 3 auth error (not logged in, wrong password, verification required, token rejected), 130 SIGINT/SIGTERM

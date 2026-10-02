@@ -1,0 +1,7 @@
+[
+{"bytes":"e2dfdd680c0400","app":{"time_stamp":1759371234,"tz_in15_min":12,"version":4,"data_type":0,"daily_type":0,"sport_type":0,"file_type":0,"tz_offset_in_sec":10800,"validity_len":6,"server_id":"e2dfdd680c04","crc32":"de9eba08"}},
+{"bytes":"01000080ec01d9","app":{"time_stamp":2147483649,"tz_in15_min":-20,"version":1,"data_type":1,"daily_type":0,"sport_type":22,"file_type":1,"tz_offset_in_sec":-18000,"validity_len":5,"server_id":"01000080ec0116","crc32":"0410ae90"}},
+{"bytes":"ffffffffd009ff","app":{"time_stamp":4294967295,"tz_in15_min":-48,"version":9,"data_type":1,"daily_type":0,"sport_type":31,"file_type":3,"tz_offset_in_sec":-43200,"validity_len":0,"server_id":"ffffffffd0091f","crc32":"0b9eb68e"}},
+{"bytes":"00000000008120","app":{"time_stamp":0,"tz_in15_min":0,"version":-127,"data_type":0,"daily_type":8,"sport_type":0,"file_type":0,"tz_offset_in_sec":0,"validity_len":-1,"server_id":"000000000081","crc32":"bc569a84"}},
+{"bytes":"e2dfdd6838020c","app":{"time_stamp":1759371234,"tz_in15_min":56,"version":2,"data_type":0,"daily_type":3,"sport_type":0,"file_type":0,"tz_offset_in_sec":50400,"validity_len":2,"server_id":"e2dfdd683802","crc32":"3f383474"}}
+]

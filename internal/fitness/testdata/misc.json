@@ -1,0 +1,7 @@
+[
+{"name":"daily type 1 has no parser","file":"e2dfdd6820010400b1ac17a899e8d95d1f9de2af5421","app":{"data_invalid_version":true}},
+{"name":"sport type 0 has no parser","file":"e2dfdd68200181009109bbc97456e6d3395a90726d68","app":{"data_invalid_version":true}},
+{"name":"sport type 26 has no parser","file":"e2dfdd682001e800a1ef3368e5331e96116269427f5a","app":{"data_invalid_version":true}},
+{"name":"daily record fileType 2 has no parser","file":"e2dfdd68200102000ef8ee7da54dfbf184d5bd67617c","app":null},
+{"name":"header shorter than validity","file":"e2dfdd6820060100ffa3c32dcb","app":{"error":"java.lang.IllegalArgumentException: newPosition > limit: (12 > 8)"}}
+]
