@@ -19,11 +19,11 @@
   - `root.go` - root command, global flags (`--format`, `--region`, `--user`, `--user-id`, `--pass-token`, `--verbose`), exit codes (0 ok, 1 error, 3 auth, 130 interrupted), `exitCode`
   - `session.go` - saved session in `os.UserConfigDir()/miband/cloud.json` (mode 0600, atomic `writeSecret`), `cloudFlags.login` (explicit credentials or saved session), `client` with one pass-token re-login on `cloud.ErrUnauthorized` (`withRetry`)
   - `echo_unix.go` (darwin, linux; ioctl numbers in `echo_darwin.go`, `echo_linux.go`) - password prompt turns echo off via termios before the cancelable read starts and restores it on return; `echo_other.go` falls back to `term.ReadPassword`
-  - `login.go`, `logout.go`, `devices.go`, `data.go` - subcommands; `logout` only removes `cloud.json`; `login` prompts for region, account, password and email code that no flag gives (`askMissing`, `verifyEmail`); `data.go` builds a `dataResult` with sections in `--kind` order
+  - `login.go`, `logout.go`, `devices.go`, `data.go` - subcommands; `logout` ends the server session (`Session.Logout`), then removes `cloud.json`; `login` prompts for region, account, password and email code that no flag gives (`askMissing`, `verifyEmail`); `data.go` builds a `dataResult` with sections in `--kind` order
   - `summary.go` - device filter, tombstone filter, steps per device and local day
   - `output.go`, `data_output.go` - `--format` rendering: `markdown` (default) via the `markdowner` interface and the `table` helper, `json` via `encoding/json`; `dataResult.MarshalJSON` keeps the flat JSON shape (`from`, `to`, one key per section, `partial`)
 - `internal/cloud` - Xiaomi account and health cloud client
-  - `passport.go` - account.xiaomi.com login (`Login`, `LoginWithPassToken`, `Resume`), `Session`, verification and captcha errors
+  - `passport.go` - account.xiaomi.com login (`Login`, `LoginWithPassToken`, `Resume`, `Session.Logout`), `Session`, verification and captcha errors
   - `identity.go` - email code security check behind `NotificationError` (`SendEmailCode`, `EmailVerification.Finish`) via a cookie jar, then `LoginWithPassToken`
   - `sign.go` - RC4-encrypted, SHA1-signed requests (`nonce`, `signedNonce`, `rc4_hash__`, `signature`); GET signs only `data`, `locale` stays plaintext
   - `client.go` - `Options` (region host `https://<region>.hlth.io.mi.com`, locale, pseudo device id, test URLs, `Logf`)

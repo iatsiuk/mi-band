@@ -31,10 +31,12 @@ type fakeAccount struct {
 	options     string
 	ticketReply string
 	passed      bool
+	logoutFails bool
+	logouts     []string // pass tokens sent to /pass/logout
 }
 
 // newFakeAccount serves the password login, the email identity check and the sts step.
-func newFakeAccount(t *testing.T, fa fakeAccount) *httptest.Server {
+func newFakeAccount(t *testing.T, fa *fakeAccount) *httptest.Server {
 	t.Helper()
 	if fa.ticketReply == "" {
 		fa.ticketReply = `{"code":0}`
@@ -88,6 +90,18 @@ func newFakeAccount(t *testing.T, fa fakeAccount) *httptest.Server {
 	mux.HandleFunc("/healthapp/sts", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, "ok")
 	})
+	mux.HandleFunc("/pass/logout", func(w http.ResponseWriter, r *http.Request) {
+		token := ""
+		if c, err := r.Cookie("passToken"); err == nil {
+			token = c.String()
+		}
+		fa.logouts = append(fa.logouts, token)
+		if fa.logoutFails {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		w.WriteHeader(http.StatusFound)
+	})
 	mux.HandleFunc("/sts", func(w http.ResponseWriter, _ *http.Request) {
 		http.SetCookie(w, fakeCookie("serviceToken", "st"))
 		w.WriteHeader(http.StatusFound)
@@ -108,7 +122,7 @@ func TestLoginPromptsForRegionAccountPasswordAndEmailCode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newFakeAccount(t, fakeAccount{options: "[4,8]"})
+			newFakeAccount(t, &fakeAccount{options: "[4,8]"})
 			in := tt.region + "\n" + fakeUser + "\nsecret\n111111\n \n" + fakeCode + "\n"
 			_, stderr, err := executeIn(t, in, "login")
 			if err != nil {
@@ -139,7 +153,7 @@ func TestLoginPromptsForRegionAccountPasswordAndEmailCode(t *testing.T) {
 }
 
 func TestLoginFlagsSkipPrompts(t *testing.T) {
-	newFakeAccount(t, fakeAccount{options: "[8]"})
+	newFakeAccount(t, &fakeAccount{options: "[8]"})
 	_, stderr, err := executeIn(t, "secret\n"+fakeCode+"\n", "login", "--region", "sg", "--user", fakeUser)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)
@@ -150,7 +164,7 @@ func TestLoginFlagsSkipPrompts(t *testing.T) {
 }
 
 func TestLoginWithoutEmailCodePointsToBrowser(t *testing.T) {
-	newFakeAccount(t, fakeAccount{options: "[4]"})
+	newFakeAccount(t, &fakeAccount{options: "[4]"})
 	_, _, err := executeIn(t, "secret\n", "login", "--region", "sg", "--user", fakeUser)
 	var ne *cloud.NotificationError
 	if !errors.As(err, &ne) || !strings.Contains(err.Error(), "--pass-token") || exitCode(err) != exitAuth {
@@ -159,7 +173,7 @@ func TestLoginWithoutEmailCodePointsToBrowser(t *testing.T) {
 }
 
 func TestLoginGivesUpAfterWrongCodes(t *testing.T) {
-	newFakeAccount(t, fakeAccount{options: "[8]"})
+	newFakeAccount(t, &fakeAccount{options: "[8]"})
 	_, _, err := executeIn(t, "secret\n1\n2\n3\n"+fakeCode+"\n", "login", "--region", "sg", "--user", fakeUser)
 	if !errors.Is(err, cloud.ErrWrongCode) || exitCode(err) != exitAuth {
 		t.Fatalf("got %v, want ErrWrongCode", err)
@@ -167,7 +181,7 @@ func TestLoginGivesUpAfterWrongCodes(t *testing.T) {
 }
 
 func TestLoginFallsBackToBrowserWhenEmailCheckFails(t *testing.T) {
-	newFakeAccount(t, fakeAccount{options: "[8]", ticketReply: `{"code":70022,"desc":"no chances"}`})
+	newFakeAccount(t, &fakeAccount{options: "[8]", ticketReply: `{"code":70022,"desc":"no chances"}`})
 	_, _, err := executeIn(t, "secret\n", "login", "--region", "sg", "--user", fakeUser)
 	var ne *cloud.NotificationError
 	if !errors.As(err, &ne) || exitCode(err) != exitAuth {
@@ -181,7 +195,7 @@ func TestLoginFallsBackToBrowserWhenEmailCheckFails(t *testing.T) {
 }
 
 func TestLoginSkipsCodeWhenCheckIsPassed(t *testing.T) {
-	newFakeAccount(t, fakeAccount{passed: true})
+	newFakeAccount(t, &fakeAccount{passed: true})
 	_, stderr, err := executeIn(t, "secret\n", "login", "--region", "sg", "--user", fakeUser)
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)

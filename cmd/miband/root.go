@@ -40,7 +40,7 @@ func newRootCmd() *cobra.Command {
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	cmd.AddCommand(newLoginCmd(cf))
-	cmd.AddCommand(newLogoutCmd())
+	cmd.AddCommand(newLogoutCmd(cf))
 	cmd.AddCommand(newDevicesCmd(cf))
 	cmd.AddCommand(newDataCmd(cf))
 

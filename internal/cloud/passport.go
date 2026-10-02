@@ -399,3 +399,21 @@ func Resume(saved *Session, opts *Options) (*Session, error) {
 // DeviceID returns the pseudo device id this session logs in with; save it with the session so
 // later logins look like the same phone, as Mi Fitness does with its stored hashed device id.
 func (s *Session) DeviceID() string { return s.opts.DeviceID }
+
+// Logout ends the account session of the pass token the way the account web page does (browser
+// HAR): GET /pass/logout with the session cookies. Its redirect only clears browser cookies on the
+// other Xiaomi domains, so it is not followed. Mi Fitness itself only forgets the account locally.
+func (s *Session) Logout(ctx context.Context) error {
+	q := url.Values{"userId": {s.UserID}, "callback": {s.opts.AccountURL}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.opts.AccountURL+"/pass/logout?"+q.Encode(), http.NoBody)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", navigationAccept)
+	reply, err := s.opts.send(req, webViewUserAgent(),
+		cookieHeader("userId", s.UserID, "cUserId", s.CUserID, "passToken", s.PassToken, "deviceId", s.opts.DeviceID))
+	if s.opts.Logf != nil && reply != nil {
+		s.opts.Logf("GET %s: HTTP %d", req.URL.Path, reply.status)
+	}
+	return err
+}

@@ -49,7 +49,7 @@ miband data --kind heart_rate,spo2 --raw
 | Command | Description |
 |---------|-------------|
 | `login` | Log into the Xiaomi account and save the cloud session |
-| `logout` | Remove the saved cloud session |
+| `logout` | End the account session and remove the saved cloud session |
 | `devices` | List devices bound to the account |
 | `data` | Fetch steps, sleep, workouts and other records synced by Mi Fitness |
 
@@ -80,7 +80,7 @@ The session is saved with mode 0600 to `~/Library/Application Support/miband/clo
 miband logout
 ```
 
-Removes the saved session file. Like Mi Fitness, logout is local only: the pass token stays valid on the Xiaomi server until the password is changed or the device is removed in the security settings of `account.xiaomi.com`.
+Ends the session of the saved pass token on `account.xiaomi.com` the way the account web page does, then removes the saved session file. The file is removed even if the server call fails; logout then exits with an error, since the pass token may still be valid. With an unreadable session file only the file is removed.
 
 ### data
 

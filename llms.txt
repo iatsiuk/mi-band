@@ -22,7 +22,7 @@ miband data --kind heart_rate,spo2 --raw
 ## Commands
 
 - login - log into the Xiaomi account and save the session; prompts (stderr, answers from stdin lines) for region unless --region, account unless --user, password unless MIBAND_PASSWORD (no-echo on TTY), and the email code of a security check (3 tries, empty answers re-asked; a refused check prints the browser URL); or --user-id with --pass-token (cookies of account.xiaomi.com after browser verification)
-- logout - remove the saved session file (local only, the pass token stays valid on the server); prints "not logged in" and exits 0 when there is none
+- logout - end the saved pass token's session on account.xiaomi.com (GET /pass/logout), then remove the session file; the file is removed even if the server call fails (exit 1 then); prints "not logged in" and exits 0 when there is none
 - devices - list devices bound to the account: did, model, name, mac, sn
 - data - fetch records; --days (7, 0..3650, from local midnight, today included), --kind (steps,sleep,workouts or any record key such as heart_rate, spo2, stress, calories, watch_night_sleep), --did (one device), --details (download and decode workout record/gps/recover_rate files), --raw (records as stored, including tombstones)
 
