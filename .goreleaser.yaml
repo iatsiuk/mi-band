@@ -21,26 +21,6 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
-homebrew_casks:
-  - name: miband
-    repository:
-      owner: iatsiuk
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: "https://github.com/iatsiuk/mi-band"
-    description: "CLI tool for Xiaomi Smart Band data synced by Mi Fitness to the Xiaomi cloud"
-    hooks:
-      post:
-        install: |
-          system_command "/bin/sh", args: ["-c", "xattr -d com.apple.quarantine '#{staged_path}/miband' 2>/dev/null; true"]
-    caveats: |
-      Quarantine attribute (com.apple.quarantine) is automatically removed
-      from the miband binary during installation to prevent Gatekeeper warnings.
-      See: https://github.com/Homebrew/brew/issues/20755
-
-      To uninstall:
-        brew uninstall --cask iatsiuk/tap/miband
-
 changelog:
   sort: asc
   filters:

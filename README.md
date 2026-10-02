@@ -6,12 +6,6 @@ Mi Fitness on the phone uploads band data after it syncs with the band (at most 
 
 ## Installation
 
-### Homebrew
-
-```bash
-brew install iatsiuk/tap/miband
-```
-
 ### From releases
 
 Download the binary from the [GitHub Releases](https://github.com/iatsiuk/mi-band/releases) page.
